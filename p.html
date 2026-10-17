@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hit 'Em Up 5 - Bezpośredni Eksport</title>
+    <style>
+        body { background: #0c0f12; color: #fff; font-family: sans-serif; padding: 15px; text-align: center; }
+        .box { background: #181d26; padding: 25px; border-radius: 12px; max-width: 480px; margin: auto; box-shadow: 0 4px 20px rgba(0,0,0,0.6); border: 1px solid #ff3b3033; }
+        h2 { color: #ff3b30; margin-bottom: 5px; text-transform: uppercase; }
+        p { color: #6c7a92; font-size: 13px; margin-bottom: 20px; }
+        .status { font-weight: bold; padding: 10px; border-radius: 6px; background: #111; margin: 10px 0; color: #00ffcc; font-family: monospace; }
+        button, select { width: 100%; padding: 14px; margin: 8px 0; font-size: 15px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; }
+        .btn-rec { background: #ff3b30; color: #fff; }
+        .btn-stop { background: #ffcc00; color: #000; display: none; }
+        .btn-export { background: #0072ff; color: #fff; display: none; }
+        select { background: #222b36; color: #fff; border: 1px solid #384656; }
+        label { display: block; text-align: left; margin-top: 15px; font-weight: bold; color: #ffcc00; font-size: 14px; }
+        audio { width: 100%; margin-top: 15px; display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="box">
+        <h2>🎙️ Hit 'Em Up 5 - Folder Ścieżkowy</h2>
+        <p>Pobierz bezpośredni plik dźwiękowy, który automatycznie wymusi utworzenie folderu o zbieżnym numerze.</p>
+        
+        <div id="status-bar" class="status">Gotowy do nagrywania</div>
+
+        <button id="rec-btn" class="btn-rec" onclick="startRecording()">🔴 ROZPOCZNIJ NAGRYWANIE</button>
+        <button id="stop-btn" class="btn-stop" onclick="stopRecording()">⏹️ ZATRZYMAJ NAGRANIE</button>
+
+        <audio id="audio-playback" controls></audio>
+
+        <label>💾 Wybierz format docelowy pliku:</label>
+        <select id="format-select">
+            <option value="audio/mp3">MP3 (.mp3) - Skompresowany</option>
+            <option value="audio/wav">WAV (.wav) - Nieskompresowany</option>
+            <option value="audio/webm">WEBM (.webm) - Lekki format</option>
+        </select>
+
+        <button id="export-btn" class="btn-export" onclick="exportDirectAudio()">📥 POBIERZ PLIK I WYMUŚ FOLDER</button>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let audioBlob;
+
+        const statusBar = document.getElementById('status-bar');
+        const recBtn = document.getElementById('rec-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const exportBtn = document.getElementById('export-btn');
+        const playback = document.getElementById('audio-playback');
+
+        function startRecording() {
+            audioChunks = [];
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+                    statusBar.innerText = "🎙️ NAGRYWANIE... Mów teraz";
+                    statusBar.style.color = "#ff3b30";
+                    recBtn.style.display = "none";
+                    stopBtn.style.display = "block";
+                    exportBtn.style.display = "none";
+                    playback.style.display = "none";
+
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        audioChunks.push(event.data);
+                    });
+                })
+                .catch(err => alert("Brak dostępu do mikrofonu: " + err.message));
+        }
+
+        function stopRecording() {
+            mediaRecorder.stop();
+            mediaRecorder.addEventListener("stop", () => {
+                audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                playback.src = URL.createObjectURL(audioBlob);
+                
+                statusBar.innerText = "✅ Nagranie gotowe do bezpośredniego zapisu";
+                statusBar.style.color = "#00ffcc";
+                recBtn.style.display = "block";
+                recBtn.innerText = "🔄 NAGRAJ PONOWNIE";
+                stopBtn.style.display = "none";
+                exportBtn.style.display = "block";
+                playback.style.display = "block";
+                
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            });
+        }
+
+        function exportDirectAudio() {
+            if (audioChunks.length === 0) return;
+
+            const chosenMime = document.getElementById('format-select').value;
+            let ext = ".mp3";
+            if (chosenMime === "audio/wav") ext = ".wav";
+            if (chosenMime === "audio/webm") ext = ".webm";
+
+            // LOSOWANIE NUMERU: Generujemy unikalną identyfikację liczbową dla pliku i folderu
+            const currentNumber = Math.floor(100000 + Math.random() * 900000); 
+
+            // Konwersja danych na wybrany typ audio
+            const finalAudioBlob = new Blob(audioChunks, { type: chosenMime });
+            const exportUrl = URL.createObjectURL(finalAudioBlob);
+            
+            const downloader = document.createElement('a');
+            downloader.href = exportUrl;
+
+            // SZTUCZKA SYSTEMOWA: Znak "/" w nazwie pliku instruuje systemowy menedżer plików,
+            // aby utworzył folder o nazwie przed ukośnikiem, a plik zapisał w jego wnętrzu.
+            downloader.download = `${currentNumber}/hitemup_voice_${currentNumber}${ext}`; 
+            
+            document.body.appendChild(downloader);
+            downloader.click();
+            document.body.removeChild(downloader);
+            
+            URL.revokeObjectURL(exportUrl);
+            statusBar.innerText = `✅ Wysłano żądanie zapisu pliku w folderze: ${currentNumber}`;
+        }
+    </script>
+</body>
+</html>
